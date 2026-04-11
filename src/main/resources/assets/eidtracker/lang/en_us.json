@@ -1,6 +1,9 @@
 {
   "commands.eid.get": "Current Entity ID: %s",
+  "commands.eid.fetch": "The Entity ID of %1$s is %2$s.",
   "commands.eid.set": "Set the Current Entity ID to %s.",
+  "commands.eid.modify": "Set the Entity ID of %1$s to %2$s.",
+  "commands.eid.modify.fail": "Failed to modify the Entity ID of %s.",
   "commands.eid.increment": "Incremented the Current Entity ID by %1$s. Current Entity ID: %2$s.",
   "commands.eid.decrement": "Decremented the Current Entity ID by %1$s. Current Entity ID: %2$s.",
   "commands.eid.subscribe.true": "%s subscribed to the Current Entity ID.",

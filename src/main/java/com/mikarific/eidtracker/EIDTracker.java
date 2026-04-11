@@ -12,8 +12,6 @@ public class EIDTracker implements ModInitializer {
     public void onInitialize() {
         NetworkingHandler.init();
 
-        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            EIDCommand.register(dispatcher, environment);
-        });
+        CommandRegistrationCallback.EVENT.register(EIDCommand::register);
     }
 }

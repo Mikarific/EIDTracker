@@ -1,7 +1,7 @@
 package com.mikarific.eidtracker.commands;
 
-import com.mikarific.eidtracker.mixins.CommandSourceStackAccessor;
-import com.mikarific.eidtracker.mixins.EntityAccessor;
+import com.mikarific.eidtracker.interfaces.ITrackedEntity;
+import com.mikarific.eidtracker.mixins.*;
 import com.mikarific.eidtracker.networking.NetworkingHandler;
 import com.mikarific.eidtracker.networking.packets.EIDPayload;
 import com.mikarific.eidtracker.networking.packets.SubscribePayload;
@@ -10,17 +10,33 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
+import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
+import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
+import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
+import net.minecraft.server.level.ChunkMap;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.Permissions;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.PositionMoveRotation;
+import net.minecraft.world.level.entity.EntityLookup;
+import net.minecraft.world.level.entity.PersistentEntitySectionManager;
 import net.minecraft.world.level.gamerules.GameRules;
+import org.jspecify.annotations.NonNull;
 
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -67,26 +83,42 @@ public class EIDCommand {
         }
     }
 
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, Commands.CommandSelection environment) {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext registryAccess, Commands.CommandSelection environment) {
         dispatcher.register(Commands.literal("eid")
                 .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                 .then(Commands.literal("get")
                         .executes(context -> get(context.getSource()))
                 )
                 .then(Commands.literal("set")
-                        .then(Commands.argument("value", IntegerArgumentType.integer(-2147483648, 2147483647))
+                        .then(Commands.argument("value", IntegerArgumentType.integer(Integer.MIN_VALUE, Integer.MAX_VALUE))
                                 .executes(context -> set(context.getSource(), IntegerArgumentType.getInteger(context, "value")))
+                        )
+                )
+                .then(Commands.literal("fetch")
+                        .executes(context -> fetch(context.getSource(), context.getSource().getEntityOrException()))
+                        .then(Commands.argument("entity", EntityArgument.entities())
+                                .executes(context -> fetch(context.getSource(), EntityArgument.getEntity(context, "entity")))
+                        )
+                )
+                .then(Commands.literal("modify")
+                        .executes(context -> modify(context.getSource(), context.getSource().getEntityOrException(),    
+                                                                                            IntegerArgumentType.getInteger(context, "value")))
+                        .then(Commands.argument("entity", EntityArgument.entities())
+                                .then(Commands.argument("value", IntegerArgumentType.integer(Integer.MIN_VALUE, Integer.MAX_VALUE))
+                                        .executes(context -> modify(context.getSource(), EntityArgument.getEntity(context, "entity"),
+                                                IntegerArgumentType.getInteger(context, "value")))
+                                )
                         )
                 )
                 .then(Commands.literal("increment")
                         .executes(context -> increment(context.getSource(), 1))
-                        .then(Commands.argument("value", IntegerArgumentType.integer(-2147483648, 2147483647))
+                        .then(Commands.argument("value", IntegerArgumentType.integer(Integer.MIN_VALUE, Integer.MAX_VALUE))
                                 .executes(context -> increment(context.getSource(), IntegerArgumentType.getInteger(context, "value")))
                         )
                 )
                 .then(Commands.literal("decrement")
                         .executes(context -> decrement(context.getSource(), 1))
-                        .then(Commands.argument("value", IntegerArgumentType.integer(-2147483648, 2147483647))
+                        .then(Commands.argument("value", IntegerArgumentType.integer(Integer.MIN_VALUE, Integer.MAX_VALUE))
                                 .executes(context -> decrement(context.getSource(), IntegerArgumentType.getInteger(context, "value")))
                         )
                 )
@@ -119,12 +151,50 @@ public class EIDCommand {
         return Command.SINGLE_SUCCESS;
     }
 
+    private static int fetch(CommandSourceStack source, @NonNull Entity entity) {
+        MutableComponent displayEntityName = Component.literal(entity.getPlainTextName()).withStyle(ChatFormatting.AQUA);
+        MutableComponent displayId = Component.literal(String.valueOf(entity.getId())).withStyle(ChatFormatting.YELLOW);
+        MutableComponent translatable = Component.translatable("commands.eid.fetch", displayEntityName, displayId);
+        MutableComponent fallback = Component.literal("The Entity ID of ").append(displayEntityName).append(" is ")
+                .append(displayId).append(".");
+        sendResponse(source, translatable, fallback);
+
+        return Command.SINGLE_SUCCESS;
+    }
+
     private static int set(CommandSourceStack source, int value) {
         EntityAccessor.getCurrentId().set(value);
 
         MutableComponent displayValue = Component.literal(String.valueOf(value)).withStyle(ChatFormatting.YELLOW);
         MutableComponent translatable = Component.translatable("commands.eid.set", displayValue);
         MutableComponent fallback = Component.literal("Set the Current Entity ID to ").append(displayValue).append(".");
+        sendResponse(source, translatable, fallback);
+
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int modify(CommandSourceStack source, @NonNull Entity entity, int value) {
+        ServerLevel level = source.getLevel();
+        int oldId = entity.getId();
+        forceUpdateEntityId(level, entity, oldId, value);
+        updateNetworkTrackerId(level, oldId, value);
+        sendSyncPackets(level, entity, oldId, value);
+
+        if (entity.getId() != value) {
+            MutableComponent displayEntityName = Component.literal(entity.getPlainTextName()).withStyle(ChatFormatting.UNDERLINE);
+            MutableComponent translatable = Component.translatable("commands.eid.modify.fail", displayEntityName)
+                    .withStyle(ChatFormatting.RED).withStyle(ChatFormatting.BOLD);
+            MutableComponent fallback = Component.literal("Failed to modify the Entity ID of ").append(displayEntityName).append(".");
+            sendError(source, translatable, fallback);
+
+            return 0;
+        }
+
+        MutableComponent displayEntityName = Component.literal(entity.getPlainTextName()).withStyle(ChatFormatting.AQUA);
+        MutableComponent displayValue = Component.literal(String.valueOf(value)).withStyle(ChatFormatting.YELLOW);
+        MutableComponent translatable = Component.translatable("commands.eid.modify", displayEntityName, displayValue);
+        MutableComponent fallback = Component.literal("Set the Entity ID of ").append(displayEntityName)
+                .append(" to ").append(displayValue).append(".");
         sendResponse(source, translatable, fallback);
 
         return Command.SINGLE_SUCCESS;
@@ -204,7 +274,7 @@ public class EIDCommand {
         int tickCount = source.getServer().getTickCount();
 
         if (!TrackerManager.isTracking(player)) {
-            MutableComponent translatable = Component.translatable("commands.eid.track.fail");
+            MutableComponent translatable = Component.translatable("commands.eid.track.stop.fail");
             MutableComponent fallback = Component.literal("You're not tracking the Current Entity ID!");
             sendError(source, translatable, fallback);
             return 0;
@@ -228,5 +298,62 @@ public class EIDCommand {
         TrackerManager.sendRate(player, tickCount);
 
         return Command.SINGLE_SUCCESS;
+    }
+
+    private static void forceUpdateEntityId(ServerLevel level, Entity entity, int oldId, int newId) {
+        PersistentEntitySectionManager<Entity> manager = ((ServerWorldAccessor) level).getEntityManager();
+        EntityLookup visibleEntityStorage = ((PersistentEntitySectionManagerAccessor<Entity>) manager).getVisibleEntityStorage();
+        Int2ObjectMap<Entity> idMap = ((EntityLookupAccessor<Entity>) visibleEntityStorage).getById();
+
+        idMap.remove(oldId);
+
+        ((EntityAccessor) entity).setEntityId(newId);
+
+        idMap.put(newId, entity);
+    }
+
+    private static void updateNetworkTrackerId(ServerLevel level, int oldId, int newId) {
+        ChunkMap chunkMap = level.getChunkSource().chunkMap;
+        Int2ObjectMap<ITrackedEntity> entityMap = ((ChunkMapAccessor) chunkMap).getEntityMap();
+
+        ITrackedEntity tracker = entityMap.remove(oldId);
+        if (tracker != null) {
+            entityMap.put(newId, tracker);
+        }
+    }
+
+    private static void sendSyncPackets(ServerLevel level, Entity entity, int oldId, int newId) {
+        ClientboundRemoveEntitiesPacket removeEntityPacket = new ClientboundRemoveEntitiesPacket(oldId);
+        ClientboundAddEntityPacket spawnEntityPacket = new ClientboundAddEntityPacket(
+                newId,
+                entity.getUUID(),
+                entity.getX(), entity.getY(), entity.getZ(),
+                entity.getXRot(), entity.getYRot(),
+                entity.getType(), 0,
+                entity.getDeltaMovement(),
+                entity.getYHeadRot()
+        );
+        ClientboundTeleportEntityPacket teleportEntityPacket = ClientboundTeleportEntityPacket.teleport(
+                newId,
+                new PositionMoveRotation(
+                        entity.position(),
+                        entity.getDeltaMovement(),
+                        entity.getYRot(),
+                        entity.getXRot()
+                ),
+                Collections.emptySet(),
+                entity.onGround()
+        );
+
+        for (ServerPlayer player : PlayerLookup.tracking(entity)) {
+            player.connection.send(removeEntityPacket);
+            player.connection.send(spawnEntityPacket);
+            player.connection.send(teleportEntityPacket);
+
+            var metadata = entity.getEntityData().getNonDefaultValues();
+            if (metadata != null && !metadata.isEmpty()) {
+                player.connection.send(new ClientboundSetEntityDataPacket(newId, metadata));
+            }
+        }
     }
 }
