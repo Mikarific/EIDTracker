@@ -1,5 +1,6 @@
 package com.mikarific.eidtracker.commands;
 
+import com.mikarific.eidtracker.context.EIDTrackerContext;
 import com.mikarific.eidtracker.interfaces.ITrackedEntity;
 import com.mikarific.eidtracker.mixins.*;
 import com.mikarific.eidtracker.networking.NetworkingHandler;
@@ -129,6 +130,15 @@ public class EIDCommand {
                         )
                         .then(Commands.literal("stop")
                                 .executes(context -> endTrack(context.getSource()))
+                        )
+                )
+                .then(Commands.literal("preventUnintentionalSuppression")
+                        .executes(context -> preventUnintentionalSuppression(context.getSource(), !EIDTrackerContext.fixNonPlayerTriggeredCollidingEntityIds))
+                        .then(Commands.literal("true")
+                                .executes(context -> preventUnintentionalSuppression(context.getSource(), true))
+                        )
+                        .then(Commands.literal("false")
+                                .executes(context -> preventUnintentionalSuppression(context.getSource(), false))
                         )
                 )
         );
@@ -296,6 +306,21 @@ public class EIDCommand {
         if (!TrackerManager.isTracking(player)) return beginTrack(source);
 
         TrackerManager.sendRate(player, tickCount);
+
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int preventUnintentionalSuppression(CommandSourceStack source, boolean value) {
+        EIDTrackerContext.fixNonPlayerTriggeredCollidingEntityIds = value;
+
+        MutableComponent displayValue = Component.literal(value ? "enabled" : "disabled")
+                .withStyle(value ? ChatFormatting.GREEN : ChatFormatting.RED);
+        MutableComponent translatable = Component.translatable("commands.eid.preventCrashes"
+                + (value ? ".true" : ".false"), displayValue);
+        MutableComponent fallback = Component.literal("Prevention of unintentional entity suppression ").append(displayValue)
+                .append(".\nAny non-player triggered EID collisions will ")
+                .append(value ? "be handled\nto prevent a server crash." : "cause a server crash.");
+        sendResponse(source, translatable, fallback);
 
         return Command.SINGLE_SUCCESS;
     }

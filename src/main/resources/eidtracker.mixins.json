@@ -5,11 +5,13 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "ChunkMapAccessor",
+    "ChunkMapMixin",
     "CommandSourceStackAccessor",
     "EntityAccessor",
     "EntityLookupAccessor",
     "MinecraftServerMixin",
     "PersistentEntitySectionManagerAccessor",
+    "ServerGamePacketListenerImplMixin",
     "ServerWorldAccessor",
     "TrackedEntityMixin"
   ],

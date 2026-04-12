@@ -16,6 +16,8 @@
   "commands.eid.track.finished": "Finished tracking the Current Entity ID.",
   "commands.eid.fix.true": "The Current Entity ID now behaves like §eMULTIPLAYER§r.",
   "commands.eid.fix.false": "The Current Entity ID now behaves like §eSINGLEPLAYER§r.",
+  "commands.eid.preventCrashes.true": "Prevention of unintentional entity suppression %s.\nAny non-player triggered EID collisions will be handled\nto prevent a server crash.",
+  "commands.eid.preventCrashes.false": "Prevention of unintentional entity suppression %s.\nAny non-player triggered EID collisions will cause a\nserver crash.",
   "minihud.config.info_toggle.comment.infoCurrentEntityID": "Show the server's ENTITY_COUNTER AtomicInteger\nNote: This is only accurate with EIDTracker on the server,\nor with Carpet TIS Addition and /log entityIdCounter.\nOtherwise it is estimated on the client side,\nbased on the add entity packet, and it can\nonly detect entities within your render distance that way.",
   "minihud.config.info_toggle.name.infoCurrentEntityID": "infoCurrentEntityID",
   "minihud.info_line.current_entity_id": "Entity ID: %s%d%s / %s%.2f%%%s",
