@@ -39,7 +39,6 @@ public abstract class ChunkMapMixin {
             at = @At(value = "HEAD", target = "addEntity")
     )
     private void handleGracefully(Entity entity, CallbackInfo ci) {
-        LOGGER.info("addEntity ran. Entity: {}; isPlayerAction: {};", entity.getType().getDescriptionId(), EIDTrackerContext.isPlayerAction());
         if (EIDTrackerContext.isPlayerAction() || !EIDTrackerContext.fixNonPlayerTriggeredCollidingEntityIds) return;
 
         ChunkMap self = (ChunkMap) (Object) this;
