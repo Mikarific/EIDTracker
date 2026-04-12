@@ -4,9 +4,16 @@
   "package": "com.mikarific.eidtracker.mixins",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "ChunkMapAccessor",
+    "ChunkMapMixin",
     "CommandSourceStackAccessor",
     "EntityAccessor",
-    "MinecraftServerMixin"
+    "EntityLookupAccessor",
+    "MinecraftServerMixin",
+    "PersistentEntitySectionManagerAccessor",
+    "ServerGamePacketListenerImplMixin",
+    "ServerWorldAccessor",
+    "TrackedEntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1

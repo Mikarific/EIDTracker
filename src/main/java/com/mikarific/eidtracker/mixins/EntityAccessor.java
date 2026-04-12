@@ -12,4 +12,7 @@ public interface EntityAccessor {
     static AtomicInteger getCurrentId() {
         throw new AssertionError();
     }
+
+    @Accessor("id")
+    void setEntityId(int id);
 }
