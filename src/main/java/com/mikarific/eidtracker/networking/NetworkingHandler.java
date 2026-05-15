@@ -19,11 +19,13 @@ public class NetworkingHandler {
     public static final Set<UUID> clients = ConcurrentHashMap.newKeySet();
 
     public static void init() {
-        PayloadTypeRegistry.playS2C().register(HelloPayload.TYPE, HelloPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(SubscribePayload.TYPE, SubscribePayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(EIDPayload.TYPE, EIDPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(HelloPayload.TYPE, HelloPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SubscribePayload.TYPE, SubscribePayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(EIDPayload.TYPE, EIDPayload.CODEC);
 
-        PayloadTypeRegistry.playC2S().register(HelloPayload.TYPE, HelloPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(HelloPayload.TYPE, HelloPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SubscribePayload.TYPE, SubscribePayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(EIDPayload.TYPE, EIDPayload.CODEC);
 
         Optional<ModContainer> optionalMod = FabricLoader.getInstance().getModContainer(EIDTracker.MOD_ID);
         ModContainer mod = optionalMod.orElse(null);
