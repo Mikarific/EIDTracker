@@ -34,7 +34,8 @@ public class ClientPacketListenerMixin {
         if (EIDTrackerClient.entityIDSource == EntityIDSource.GUESS || EIDTrackerClient.entityIDSource == EntityIDSource.CARPETTIS) {
             int newCurrentEntityID = packet.getId();
             if (EIDTrackerClient.currentEntityID == null || newCurrentEntityID == EIDTrackerClient.currentEntityID) return;
-            if (newCurrentEntityID - EIDTrackerClient.currentEntityID > 0) EIDTrackerClient.setCurrentEntityID(newCurrentEntityID);
+            boolean flippedNegative = newCurrentEntityID < 0 && EIDTrackerClient.currentEntityID >= 0;
+            if (newCurrentEntityID - EIDTrackerClient.currentEntityID > 0 || flippedNegative) EIDTrackerClient.setCurrentEntityID(newCurrentEntityID);
         }
     }
 
