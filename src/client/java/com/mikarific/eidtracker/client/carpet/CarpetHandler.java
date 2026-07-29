@@ -8,7 +8,7 @@ public class CarpetHandler {
     public static boolean entityIdLoggerExists = false;
 
     public static void register() {
-        PayloadTypeRegistry.playS2C().register(CarpetPayload.TYPE, CarpetPayload.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(CarpetPayload.TYPE, CarpetPayload.STREAM_CODEC);
         ClientPlayNetworking.registerGlobalReceiver(CarpetPayload.TYPE, (payload, context) -> {
             context.responseSender().sendPacket(new ServerboundCommandSuggestionPacket(Integer.MIN_VALUE, "/log "));
         });
